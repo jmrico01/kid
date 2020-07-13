@@ -1,0 +1,7 @@
+build
+deploy
+compile/env_settings.py
+
+.DS_Store
+__pycache__
+*~
