@@ -54,40 +54,92 @@ APP_UPDATE_AND_RENDER_FUNCTION(AppUpdateAndRender)
 
     // Initialize memory if necessary
     if (!memory->initialized) {
-        const char* spriteFilePaths[] = {
-            "data/sprites/jon.png",
-            "data/sprites/rock.png"
-        };
+        // TODO this should run on window recreation, fullscreen wipes all sprites
+        // Sprites
+        {
+            const char* spriteFilePaths[] = {
+                "data/sprites/jon.png",
+                "data/sprites/rock.png"
+            };
 
-        for (uint32 i = 0; i < C_ARRAY_LENGTH(spriteFilePaths); i++) {
-            int width, height, channels;
-            unsigned char* imageData = stbi_load(spriteFilePaths[i], &width, &height, &channels, 0);
-            if (imageData == NULL) {
-                DEBUG_PANIC("Failed to load sprite: %s\n", spriteFilePaths[i]);
-            }
-            defer(stbi_image_free(imageData));
+            for (uint32 i = 0; i < C_ARRAY_LENGTH(spriteFilePaths); i++) {
+                int width, height, channels;
+                unsigned char* imageData = stbi_load(spriteFilePaths[i], &width, &height, &channels, 0);
+                if (imageData == NULL) {
+                    DEBUG_PANIC("Failed to load sprite: %s\n", spriteFilePaths[i]);
+                }
+                defer(stbi_image_free(imageData));
 
-            VulkanImage sprite;
-            if (!LoadVulkanImage(vulkanState.window.device, vulkanState.window.physicalDevice,
-                                 vulkanState.window.graphicsQueue, appState->vulkanAppState.commandPool,
-                                 width, height, channels, (const uint8*)imageData, &sprite)) {
-                DEBUG_PANIC("Failed to Vulkan image for sprite %s\n", spriteFilePaths[i]);
-            }
+                VulkanImage sprite;
+                if (!LoadVulkanImage(vulkanState.window.device, vulkanState.window.physicalDevice,
+                                     vulkanState.window.graphicsQueue, appState->vulkanAppState.commandPool,
+                                     width, height, channels, (const uint8*)imageData, &sprite)) {
+                    DEBUG_PANIC("Failed to Vulkan image for sprite %s\n", spriteFilePaths[i]);
+                }
 
-            uint32 spriteIndex;
-            if (!RegisterSprite(vulkanState.window.device, &appState->vulkanAppState.spritePipeline, sprite,
-                                &spriteIndex)) {
-                DEBUG_PANIC("Failed to register sprite %s\n", spriteFilePaths[i]);
+                uint32 spriteIndex;
+                if (!RegisterSprite(vulkanState.window.device, &appState->vulkanAppState.spritePipeline, sprite,
+                                    &spriteIndex)) {
+                    DEBUG_PANIC("Failed to register sprite %s\n", spriteFilePaths[i]);
+                }
+                DEBUG_ASSERT(spriteIndex == i);
             }
-            DEBUG_ASSERT(spriteIndex == i);
         }
 
-        const_string psdPath = ToString("data/psd/kid.psd");
+        // TODO this should run on window recreation, fullscreen wipes all fonts
+        // Fonts
+        {
+            LinearAllocator allocator(transientState->scratch);
 
-        LinearAllocator allocator(transientState->scratch);
-        PsdFile psdFile;
-        if (!LoadPsd(psdPath, &allocator, &psdFile)) {
-            DEBUG_PANIC("Failed to load PSD file at %.*s\n", psdPath.size, psdPath.data);
+            struct FontData {
+                const_string filePath;
+                uint32 height;
+            };
+            const FontData fontData[] = {
+                { ToString("data/fonts/ocr-a/regular.ttf"), 18 },
+                { ToString("data/fonts/ocr-a/regular.ttf"), 24 },
+            };
+
+            FT_Library ftLibrary;
+            FT_Error error = FT_Init_FreeType(&ftLibrary);
+            if (error) {
+                DEBUG_PANIC("FreeType init error: %d\n", error);
+            }
+
+            for (uint32 i = 0; i < C_ARRAY_LENGTH(fontData); i++) {
+                LoadFontFaceResult fontFace;
+                if (!LoadFontFace(ftLibrary, fontData[i].filePath, fontData[i].height, &allocator, &fontFace)) {
+                    DEBUG_PANIC("Failed to load font face at %.*s\n", fontData[i].filePath.size, fontData[i].filePath.data);
+                }
+
+                appState->fontFaces[i].height = fontFace.height;
+                appState->fontFaces[i].glyphInfo.FromArray(fontFace.glyphInfo);
+
+                VulkanImage fontAtlas;
+                if (!LoadVulkanImage(vulkanState.window.device, vulkanState.window.physicalDevice,
+                                     vulkanState.window.graphicsQueue, appState->vulkanAppState.commandPool,
+                                     fontFace.atlasWidth, fontFace.atlasHeight, 1, fontFace.atlasData, &fontAtlas)) {
+                    DEBUG_PANIC("Failed to Vulkan image for font atlas %lu\n", i);
+                }
+
+                uint32 fontIndex;
+                if (!RegisterFont(vulkanState.window.device, &appState->vulkanAppState.textPipeline, fontAtlas,
+                                  &fontIndex)) {
+                    DEBUG_PANIC("Failed to register font %lu\n", i);
+                }
+                DEBUG_ASSERT(fontIndex == i);
+            }
+        }
+
+        // PSD
+        {
+            LinearAllocator allocator(transientState->scratch);
+
+            const_string psdPath = ToString("data/psd/kid.psd");
+            PsdFile psdFile;
+            if (!LoadPsd(psdPath, &allocator, &psdFile)) {
+                DEBUG_PANIC("Failed to load PSD file at %.*s\n", psdPath.size, psdPath.data);
+            }
         }
 
         memory->initialized = true;
@@ -108,7 +160,8 @@ APP_UPDATE_AND_RENDER_FUNCTION(AppUpdateAndRender)
 
     const_string text = ToString("the quick brown fox jumps over the lazy dog");
     const Vec4 textColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-    PushText(FontId::OCR_A_REGULAR_18, text, Vec2Int { 100, 100 }, 0.0f, screenSize, textColor,
+    const uint32 fontIndex = (uint32)FontId::OCR_A_REGULAR_18;
+    PushText(fontIndex, appState->fontFaces[fontIndex], text, Vec2Int { 100, 100 }, 0.0f, screenSize, textColor,
              appState->vulkanAppState.textPipeline, &transientState->frameState.textRenderState);
 
     // ================================================================================================

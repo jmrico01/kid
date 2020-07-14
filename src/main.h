@@ -20,6 +20,14 @@ enum class SpriteId
     COUNT
 };
 
+enum class FontId
+{
+    OCR_A_REGULAR_18,
+    OCR_A_REGULAR_24,
+
+    COUNT
+};
+
 struct VulkanAppState
 {
     VkCommandPool commandPool;
@@ -27,18 +35,19 @@ struct VulkanAppState
     VkFence fence;
 
     VulkanSpritePipeline<(uint32)SpriteId::COUNT> spritePipeline;
-    VulkanTextPipeline textPipeline;
+    VulkanTextPipeline<(uint32)FontId::COUNT> textPipeline;
 };
 
 struct AppState
 {
     VulkanAppState vulkanAppState;
+    FontFace fontFaces[FontId::COUNT];
 };
 
 struct FrameState
 {
     VulkanSpriteRenderState<(uint32)SpriteId::COUNT> spriteRenderState;
-    VulkanTextRenderState textRenderState;
+    VulkanTextRenderState<(uint32)FontId::COUNT> textRenderState;
 };
 
 struct TransientState
