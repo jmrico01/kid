@@ -12,13 +12,21 @@
 #include <km_common/vulkan/km_vulkan_sprite.h>
 #include <km_common/vulkan/km_vulkan_text.h>
 
+enum class SpriteId
+{
+    JON,
+    ROCK,
+
+    COUNT
+};
+
 struct VulkanAppState
 {
     VkCommandPool commandPool;
     VkCommandBuffer commandBuffer;
     VkFence fence;
 
-    VulkanSpritePipeline spritePipeline;
+    VulkanSpritePipeline<(uint32)SpriteId::COUNT> spritePipeline;
     VulkanTextPipeline textPipeline;
 };
 
@@ -29,7 +37,7 @@ struct AppState
 
 struct FrameState
 {
-    VulkanSpriteRenderState spriteRenderState;
+    VulkanSpriteRenderState<(uint32)SpriteId::COUNT> spriteRenderState;
     VulkanTextRenderState textRenderState;
 };
 

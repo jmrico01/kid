@@ -12,9 +12,12 @@
 #include <km_common/km_string.h>
 #include <km_common/app/km_app.h>
 
+#include "load_psd.h"
+
 #define ENABLE_THREADS 1
 
 // Required for platform main
+const char* WINDOW_NAME = "kid";
 const int WINDOW_START_WIDTH  = 1600;
 const int WINDOW_START_HEIGHT = 900;
 const uint64 PERMANENT_MEMORY_SIZE = MEGABYTES(1);
@@ -51,6 +54,42 @@ APP_UPDATE_AND_RENDER_FUNCTION(AppUpdateAndRender)
 
     // Initialize memory if necessary
     if (!memory->initialized) {
+        const char* spriteFilePaths[] = {
+            "data/sprites/jon.png",
+            "data/sprites/rock.png"
+        };
+
+        for (uint32 i = 0; i < C_ARRAY_LENGTH(spriteFilePaths); i++) {
+            int width, height, channels;
+            unsigned char* imageData = stbi_load(spriteFilePaths[i], &width, &height, &channels, 0);
+            if (imageData == NULL) {
+                DEBUG_PANIC("Failed to load sprite: %s\n", spriteFilePaths[i]);
+            }
+            defer(stbi_image_free(imageData));
+
+            VulkanImage sprite;
+            if (!LoadVulkanImage(vulkanState.window.device, vulkanState.window.physicalDevice,
+                                 vulkanState.window.graphicsQueue, appState->vulkanAppState.commandPool,
+                                 width, height, channels, (const uint8*)imageData, &sprite)) {
+                DEBUG_PANIC("Failed to Vulkan image for sprite %s\n", spriteFilePaths[i]);
+            }
+
+            uint32 spriteIndex;
+            if (!RegisterSprite(vulkanState.window.device, &appState->vulkanAppState.spritePipeline, sprite,
+                                &spriteIndex)) {
+                DEBUG_PANIC("Failed to register sprite %s\n", spriteFilePaths[i]);
+            }
+            DEBUG_ASSERT(spriteIndex == i);
+        }
+
+        const_string psdPath = ToString("data/psd/kid.psd");
+
+        LinearAllocator allocator(transientState->scratch);
+        PsdFile psdFile;
+        if (!LoadPsd(psdPath, &allocator, &psdFile)) {
+            DEBUG_PANIC("Failed to load PSD file at %.*s\n", psdPath.size, psdPath.data);
+        }
+
         memory->initialized = true;
     }
 
@@ -64,11 +103,12 @@ APP_UPDATE_AND_RENDER_FUNCTION(AppUpdateAndRender)
     for (uint32 i = 0; i < NUM_JONS; i++) {
         const Vec2Int pos = { RandInt(0, screenSize.x), RandInt(0, screenSize.y) };
         const Vec2Int size = { RandInt(50, 100), RandInt(50, 300) };
-        PushSprite(SpriteId::JON, pos, size, 0.5f, screenSize, &transientState->frameState.spriteRenderState);
+        PushSprite(0, pos, size, 0.5f, screenSize, &transientState->frameState.spriteRenderState);
     }
 
     const_string text = ToString("the quick brown fox jumps over the lazy dog");
-    PushText(FontId::OCR_A_REGULAR_18, text, Vec2Int { 100, 100 }, 0.0f, screenSize,
+    const Vec4 textColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+    PushText(FontId::OCR_A_REGULAR_18, text, Vec2Int { 100, 100 }, 0.0f, screenSize, textColor,
              appState->vulkanAppState.textPipeline, &transientState->frameState.textRenderState);
 
     // ================================================================================================
@@ -101,7 +141,7 @@ APP_UPDATE_AND_RENDER_FUNCTION(AppUpdateAndRender)
     }
 
     const VkClearValue clearValues[] = {
-        { 0.0f, 0.0f, 0.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f, 1.0f },
         { 1.0f, 0 }
     };
 
@@ -272,6 +312,8 @@ APP_UNLOAD_VULKAN_WINDOW_STATE_FUNCTION(AppUnloadVulkanWindowState)
     vkDestroyFence(device, app->fence, nullptr);
     vkDestroyCommandPool(device, app->commandPool, nullptr);
 }
+
+#include "load_psd.cpp"
 
 #include <km_common/km_array.cpp>
 #include <km_common/km_container.cpp>
