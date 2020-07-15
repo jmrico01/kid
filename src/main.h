@@ -12,12 +12,18 @@
 #include <km_common/vulkan/km_vulkan_sprite.h>
 #include <km_common/vulkan/km_vulkan_text.h>
 
+#include "animation.h"
+
+const uint32 NUM_PSD_SPRITES = 48;
+
 enum class SpriteId
 {
     JON,
     ROCK,
 
-    COUNT
+    PSD_SPRITES,
+
+    COUNT = PSD_SPRITES + NUM_PSD_SPRITES
 };
 
 enum class FontId
@@ -41,7 +47,11 @@ struct VulkanAppState
 struct AppState
 {
     VulkanAppState vulkanAppState;
+
     FontFace fontFaces[FontId::COUNT];
+    AnimatedSprite animatedSpriteKid;
+
+    AnimatedSpriteInstance animatedSpriteInstanceKid;
 };
 
 struct FrameState

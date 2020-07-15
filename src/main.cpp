@@ -23,6 +23,12 @@ const int WINDOW_START_HEIGHT = 900;
 const uint64 PERMANENT_MEMORY_SIZE = MEGABYTES(1);
 const uint64 TRANSIENT_MEMORY_SIZE = MEGABYTES(256);
 
+const char* KID_ANIMATION_IDLE = "idle";
+const char* KID_ANIMATION_WALK = "walk";
+const char* KID_ANIMATION_JUMP = "jump";
+const char* KID_ANIMATION_FALL = "fall";
+const char* KID_ANIMATION_LAND = "land";
+
 internal AppState* GetAppState(AppMemory* memory)
 {
     DEBUG_ASSERT(sizeof(AppState) < memory->permanent.size);
@@ -131,15 +137,22 @@ APP_UPDATE_AND_RENDER_FUNCTION(AppUpdateAndRender)
             }
         }
 
-        // PSD
+        // other
         {
             LinearAllocator allocator(transientState->scratch);
 
-            const_string psdPath = ToString("data/psd/kid.psd");
-            PsdFile psdFile;
-            if (!LoadPsd(psdPath, &allocator, &psdFile)) {
-                DEBUG_PANIC("Failed to load PSD file at %.*s\n", psdPath.size, psdPath.data);
+            if (!LoadAnimatedSprite(ToString("kid"), 10.0f, &allocator,
+                                    vulkanState.window.device, vulkanState.window.physicalDevice,
+                                    vulkanState.window.graphicsQueue, appState->vulkanAppState.commandPool,
+                                    &appState->vulkanAppState.spritePipeline, &appState->animatedSpriteKid)) {
+                DEBUG_PANIC("Failed to load kid animated sprite\n");
             }
+
+            appState->animatedSpriteInstanceKid.animatedSprite = &appState->animatedSpriteKid;
+            appState->animatedSpriteInstanceKid.activeAnimationKey.WriteString(KID_ANIMATION_IDLE);
+            appState->animatedSpriteInstanceKid.activeFrame = 0;
+            appState->animatedSpriteInstanceKid.activeFrameRepeat = 0;
+            appState->animatedSpriteInstanceKid.activeFrameTime = 0.0f;
         }
 
         memory->initialized = true;
@@ -151,11 +164,17 @@ APP_UPDATE_AND_RENDER_FUNCTION(AppUpdateAndRender)
         ResetTextRenderState(&transientState->frameState.textRenderState);
     }
 
-    const uint32 NUM_JONS = 10;
-    for (uint32 i = 0; i < NUM_JONS; i++) {
+    const Array<HashKey> nextAnimations = Array<HashKey>::empty;
+    UpdateAnimatedSprite(&appState->animatedSpriteInstanceKid, deltaTime, nextAnimations);
+
+    // DrawAnimatedSprite(appState->animatedSpriteInstanceKid, )
+
+    const uint32 NUM_SPRITES = 10;
+    for (uint32 i = 0; i < NUM_SPRITES; i++) {
         const Vec2Int pos = { RandInt(0, screenSize.x), RandInt(0, screenSize.y) };
         const Vec2Int size = { RandInt(50, 100), RandInt(50, 300) };
-        PushSprite(0, pos, size, 0.5f, screenSize, &transientState->frameState.spriteRenderState);
+        PushSprite((uint32)SpriteId::PSD_SPRITES, pos, size, 0.5f, screenSize,
+                   &transientState->frameState.spriteRenderState);
     }
 
     const_string text = ToString("the quick brown fox jumps over the lazy dog");
@@ -366,10 +385,12 @@ APP_UNLOAD_VULKAN_WINDOW_STATE_FUNCTION(AppUnloadVulkanWindowState)
     vkDestroyCommandPool(device, app->commandPool, nullptr);
 }
 
+#include "animation.cpp"
 #include "load_psd.cpp"
 
 #include <km_common/km_array.cpp>
 #include <km_common/km_container.cpp>
+#include <km_common/km_kmkv.cpp>
 #include <km_common/km_load_font.cpp>
 #include <km_common/km_load_obj.cpp>
 #include <km_common/km_memory.cpp>

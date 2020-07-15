@@ -303,7 +303,7 @@ internal bool ReadPackBitsData(const uint8* inData, Allocator* allocator, int wi
         const uint8* in = inData + dataIndex;
         uint16 rowParsed = 0;
         int pixelX = 0;
-        int pixelY = height - r - 1; // TODO flipping here for now - slow memory traversal!
+        int pixelY = r; // height - r - 1; // TODO flipping here for now - slow memory traversal!
 		while (true) {
 			int8 header = *(in++);
 			if (++rowParsed >= layerRowLengths[r]) {
